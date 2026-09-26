@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>الرسالة السرية</title>
+<style>
+body{font-family:Arial;margin:0;background:#f3f4f6;color:#111827}.wrap{max-width:650px;margin:35px auto;padding:16px}
+.card{background:#fff;padding:22px;border-radius:16px;margin-bottom:18px;box-shadow:0 6px 25px #0001}
+label{display:block;font-weight:bold;margin:14px 0 6px}input,textarea,button{width:100%;box-sizing:border-box;font:inherit;padding:12px;border-radius:10px}
+input,textarea{border:1px solid #ccc}textarea{min-height:100px}button{border:0;background:#111827;color:white;margin-top:12px}
+.out,.secret{margin-top:14px;padding:13px;border-radius:10px;background:#f3f4f6;word-break:break-word}.secret{white-space:pre-wrap}.note{color:#6b7280;font-size:13px;line-height:1.7}
+</style>
+</head>
+<body><div class="wrap">
+<div class="card">
+<h1>🔐 الرسالة السرية</h1>
+<p class="note">اكتب عبارة ظاهرة ورسالة سرية. رابط المشاركة يحمل الرسالة السرية مشفّرة ويمكن إدخاله في التطبيق لإظهارها.</p>
+<label>الرسالة الظاهرة</label>
+<input id="visible" placeholder="أهلا فلان">
+<label>الرسالة السرية</label>
+<textarea id="secret" placeholder="موعدنا الساعة 8"></textarea>
+<label>كلمة مرور اختيارية</label>
+<input id="createPassword" type="password">
+<button onclick="createSecret()">إنشاء رابط</button>
+<div id="created" style="display:none">
+<div class="out"><b>الرسالة الظاهرة:</b><br><span id="visibleOut"></span><br><br><b>رابط المشاركة:</b><br><span id="linkOut" dir="ltr"></span></div>
+<button onclick="copyLink()">نسخ الرابط</button>
+</div>
+</div>
+<div class="card">
+<h2>🔓 إظهار الرسالة السرية</h2>
+<label>ألصق رابط المشاركة أو اكتب العبارة الظاهرة</label>
+<input id="lookup" placeholder="أهلا فلان">
+<label>كلمة المرور</label>
+<input id="lookupPassword" type="password">
+<button onclick="reveal()">إظهار الرسالة</button>
+<div id="result" class="secret" style="display:none"></div>
+</div>
+</div>
+<script>
+const te=new TextEncoder(),td=new TextDecoder();
+function b64(a){return btoa(String.fromCharCode(...a)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=/g,"")}
+function ub64(s){s=s.replace(/-/g,"+").replace(/_/g,"/");while(s.length%4)s+="=";let x=atob(s);return Uint8Array.from(x,c=>c.charCodeAt(0))}
+async function key(p,s){let b=await crypto.subtle.importKey("raw",te.encode(p),"PBKDF2",false,["deriveKey"]);return crypto.subtle.deriveKey({name:"PBKDF2",salt:s,iterations:150000,hash:"SHA-256"},b,{name:"AES-GCM",length:256},false,["encrypt","decrypt"])}
+async function encrypt(t,p){if(!p)return{p:0,m:b64(te.encode(t))};let s=crypto.getRandomValues(new Uint8Array(16)),i=crypto.getRandomValues(new Uint8Array(12)),k=await key(p,s),c=new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv:i},k,te.encode(t))),a=new Uint8Array(28+c.length);a.set(s);a.set(i,16);a.set(c,28);return{p:1,m:b64(a)}}
+async function decrypt(o,p){if(!o.p)return td.decode(ub64(o.m));if(!p)throw Error();let a=ub64(o.m),k=await key(p,a.slice(0,16));return td.decode(await crypto.subtle.decrypt({name:"AES-GCM",iv:a.slice(16,28)},k,a.slice(28)))}
+async function createSecret(){let v=visible.value.trim(),s=secret.value,p=createPassword.value;if(!v||!s){alert("اكتب الرسالتين.");return}let payload={v:v,s:await encrypt(s,p)};let token=b64(te.encode(JSON.stringify(payload)));let link=location.href.split("?")[0]+"?secret="+token;visibleOut.textContent=v;linkOut.textContent=link;created.style.display="block"}
+async function copyLink(){await navigator.clipboard.writeText(linkOut.textContent);alert("تم النسخ")}
+async function reveal(){let x=lookup.value.trim(),p=lookupPassword.value,payload=null;try{if(/^https?:\/\//i.test(x)){let u=new URL(x),t=u.searchParams.get("secret");if(t)payload=JSON.parse(td.decode(ub64(t)))}if(!payload){let a=JSON.parse(localStorage.getItem("secretMessages")||"[]");payload=a.find(z=>z.v===x)}if(!payload)throw Error();result.style.display="block";result.textContent="الرسالة السرية:\n"+await decrypt(payload.s,p)}catch(e){result.style.display="block";result.textContent="لم يتم العثور على الرسالة أو كلمة المرور غير صحيحة."}}
+(function(){let u=new URL(location.href),t=u.searchParams.get("secret");if(t)try{let p=JSON.parse(td.decode(ub64(t)));lookup.value=p.v}catch(e){}})();
+</script>
+</body></html>
